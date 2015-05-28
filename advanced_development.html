@@ -62,6 +62,123 @@
                     </p>
                 </section>
 
+                <section class="nested">
+                    <section>
+                        <h2>Odoo 8.0: the Model API</h2>
+                        <p>Reminder of the API essentials...</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+class Employee(models.Model):
+    _name = 'employee'
+
+    name = fields.Char(string="Name", required=True)
+    manager_id = fields.Many2one('employee', string="Manager")
+    active = fields.Boolean()
+
+    @api.multi
+    def fire(self):
+        self.write({'active': False})
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Recordsets</h2>
+                        <p>
+                            A recordset is a <em>collection</em> of records of a given model.<br/>
+                            It is an instance of the model's class.
+                        </p>
+                        <pre><code class="python" data-trim>
+size = len(records)
+recs1 = records[:10]
+recs2 = records[20:]
+recs = recs1 + recs2
+recs.write({'name': 'Joe'})
+                        </code></pre>
+
+                        <p>A single record is represented as a recordset of size 1.</p>
+                        <pre><code class="python" data-trim>
+for record in records:
+    assert type(record) == type(records)
+    print record.name
+    print len(record)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Recordsets (2)</h2>
+                        <p>Recordsets are attached to an <em>environment</em>
+                            and a sequence of record ids.</p>
+                        <pre><code class="python" data-trim>
+# list of record ids
+records.ids
+
+# environment with cr, uid, context
+records._cr == records.env.cr
+records._uid == records.env.uid
+records._context == records.env.context
+
+# access recordsets of another model
+employees = records.env['employee'].search([])
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Old and new API</h2>
+                        <p>A model's class has two kinds of instances: old-API
+                            and new-API ones (recordsets).</p>
+                        <pre><code class="python" data-trim>
+# registry contains old API model instances
+old_model = registry['employee']
+
+# browse() returns a recordset (new API model instance)
+employees = old_model.browse(cr, uid, ids, context)
+
+assert employees == employees.browse(ids)
+
+# attribute _model returns the old API model instance
+assert old_model == employees._model
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Method decorators</h2>
+                        <p>A wrapper to adapt the API of a <em>method call</em>
+                            to the API of the <em>method's definition</em>.</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+# method definitions
+@api.model                          @api.multi
+def create(self, vals):             def write(self, vals):
+    ...                                 ...
+
+# calling methods with the old API
+id = old_model.create(cr, uid, vals, context=context)
+old_model.write(cr, uid, ids, vals, context=context)
+
+# calling methods with the new API
+employee = employees.create(vals)
+employees.write(vals)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Computed Fields</h2>
+                        <p>Those fields are determined by a method that assigns
+                            their value on the given records.</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+class Employee(models.Model):
+    _inherit = 'employee'
+
+    title_id = fields.Many2one('employee.title', required=True)
+    fullname = fields.Char(compute='_compute_fullname')
+
+    @api.depends('title_id.name', 'name')
+    def _compute_fullname(self):
+        for emp in self:
+            emp.fullname = "%s %s" % (emp.title_id.name, emp.name)
+                        </code></pre>
+                    </section>
+                </section>
+
                 <section class="title">
                     <h1><span>Thank you</span></h1>
                     <div style="height: 3em"> </div>
