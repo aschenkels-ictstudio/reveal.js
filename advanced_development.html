@@ -179,6 +179,137 @@ class Employee(models.Model):
                     </section>
                 </section>
 
+                <section class="nested">
+                    <section>
+                        <h2>Recordset operations</h2>
+                        <p>Combine and compare recordsets:</p>
+                        <pre><code class="python" data-trim>
+record in records               # test membership
+records[42]                     # indexing or slicing (ordered)
+records1 + records2             # concatenation (ordered)
+records1 - records2             # difference (ordered)
+records1 & records2             # set intersection (unordered)
+records1 | records2             # set union (unordered)
+records1 < records2             # set inclusion (unordered)
+records1 == records2            # set equivalence (unordered)
+
+# return recordset where it makes sense
+records.mapped(lambda rec: rec.name)            # like map()
+records.filtered(lambda rec: rec.active)        # like filter()
+records.sorted(key=lambda rec: rec.sequence)    # like sorted()
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Environments</h2>
+                        <p>Attach a recordset to another environment:</p>
+                        <pre><code class="python" data-trim>
+others = records.with_env(env)
+assert others.ids == records.ids
+assert others.env == env
+
+# switch user
+records.sudo(uid)               # integer
+records.sudo(user)              # user record
+records.sudo()                  # defaults to SUPERUSER_ID
+
+# switch or extend records' context
+records.with_context(context)
+records.with_context(extra="stuff")
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Record cache</h2>
+                        <p>Stores field values for records.</p>
+                        <pre><code class="python" data-trim>
+record._cache['name']
+record.env.cache[field][record.id]
+                        </code></pre>
+
+                        <p>Every environment has its <em>own</em> cache.</p>
+                        <p>Cache <em>prefetching</em> when accessing a field for
+                            the first time:
+                            <ul>
+                                <li>prefetches records browsed in the same environment;</li>
+                                <li>prefetches fields from the same table.</li>
+                            </ul>
+                        </p>
+                    </section>
+                    <section>
+                        <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a></h2>
+                        <p>Overridden computed field method:</p>
+                        <pre><code class="python" data-trim>
+# Module 1
+stuff = fields.Integer(compute='_get_stuff')
+
+@api.one
+def _get_stuff(self):
+    self.stuff = self._context.get('stuff', 0)
+                        </code></pre>
+                        <pre><code class="python" data-trim>
+# Module 2
+@api.one
+def _get_stuff(self):
+    other = self.with_context(stuff=42)
+    super(Class, other)._get_stuff()
+                        </code></pre>
+                        <p>This raises a KeyError when getting the value...</p>
+                    </section>
+                    <section>
+                        <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a>: Solution</h2>
+                        <p>The record "other" uses another cache than "self".</p>
+                        <p>Simply copy result to the expected cache:</p>
+                        <pre><code class="python" data-trim>
+# Module 2
+@api.one
+def _get_stuff(self):
+    other = self.with_context(stuff=42)
+    # determine other.stuff in other's cache
+    super(Class, other)._get_stuff()
+    # copy result from other's cache to self's cache
+    self.stuff = other.stuff
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Bad prefetching</h2>
+                        <p>"Prefetch records browsed in the same environment."</p>
+                        <pre><code class="python" data-trim>
+# retrieve a list of (name, id)
+action_ids = []
+for ... in ...:
+    # some query... -> name, id
+    action_ids.append((name, id))
+
+# process action_ids id by id
+for name, id in action_ids:
+    record = self.env[model].browse(id)
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>The second loop issues O(n) queries.</p>
+                    </section>
+                    <section>
+                        <h2>Good prefetching</h2>
+                        <p>Browse all records <em>before</em> accessing their fields.</p>
+                        <pre><code class="python" data-trim>
+# retrieve a list of (name, record)
+action_records = []
+for ... in ...:
+    # some query... -> name, id
+    record = self.env[model].browse(id)
+    action_records.append((name, record))
+
+# process action_records id by id
+for name, record in action_records:
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>The second loop issues O(1) queries.</p>
+                    </section>
+                </section>
+
                 <section class="title">
                     <h1><span>Thank you</span></h1>
                     <div style="height: 3em"> </div>
