@@ -393,6 +393,45 @@ def precision_get(self, cr, uid, application):
                     </section>
                 </section>
 
+                <section class="nested">
+                    <section>
+                        <h2>Debugging your server</h2>
+                        <ul>
+                            <li>The print statement.</li>
+                            <li>pdb: you need much coffee and patience!
+                                <pre><code class="python" data-trim>
+# launch debugger here
+import pdb; pdb.set_trace()
+                                </code></pre>
+                                <ul>
+                                    <li>IDE-specific support (Eclipse)</li>
+                                    <li>pudb has a visual interface (curses)</li>
+                                </ul>
+                            </li>
+                            <li>Advice: avoid werkzeug logs when logging to stderr
+                                <pre><code data-trim>
+./odoo.py ... --log-handler=werkzeug:CRITICAL
+                                </code></pre>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Profiling your server</h2>
+                        <ul>
+                            <li>Log and check SQL queries sent to the database:
+                                <pre><code data-trim>
+./odoo.py ... --log-sql
+                                </code></pre>
+                                With that, we found cases where cache prefetching
+                                was not working as expected.
+                            </li>
+                            <li>line_profiler: costly, but useful for <em>local</em>
+                                optimization.</li>
+                            <li>plop (Python Low-Overhead Profiler) + flamegraph</li>
+                        </ul>
+                    </section>
+                </section>
+
                 <section class="title">
                     <h1><span>Thank you</span></h1>
                     <div style="height: 3em"> </div>
