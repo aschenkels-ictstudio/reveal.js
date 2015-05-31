@@ -239,20 +239,22 @@ records.with_context(extra="stuff")
                 <section class="nested">
                     <section>
                         <h2>Record cache</h2>
-                        <p>Stores field values for records.</p>
-                        <pre><code class="python" data-trim>
+                        <ul>
+                            <li>Stores field values for records.
+                                <pre><code class="python" data-trim>
 record._cache['name']
 record.env.cache[field][record.id]
-                        </code></pre>
-
-                        <p>Every environment has its <em>own</em> cache.</p>
-                        <p>Cache <em>prefetching</em> when accessing a field for
-                            the first time:
-                            <ul>
-                                <li>prefetches records browsed in the same environment;</li>
-                                <li>prefetches fields from the same table.</li>
-                            </ul>
-                        </p>
+                                </code></pre>
+                            </li>
+                            <li>Every environment has its <em>own</em> cache.</li>
+                            <li>Cache <em>prefetching</em> when accessing a field for
+                                the first time:
+                                <ul>
+                                    <li>prefetches records browsed in the same environment;</li>
+                                    <li>prefetches fields from the same table.</li>
+                                </ul>
+                            </li>
+                        </ul>
                     </section>
                     <section>
                         <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a></h2>
@@ -324,6 +326,70 @@ for name, record in action_records:
         ...
                         </code></pre>
                         <p>The second loop issues O(1) queries.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>The "ormcache"</h2>
+                        <ul>
+                            <li>Memoize results for a given method.</li>
+                            <li>Attached to the registry (database-specific).</li>
+                            <li>Explicitly invalidated (multi-worker invalidation).</li>
+                        </ul>
+                        <pre><code class="python" data-trim>
+from openerp.tools import ormcache
+
+class decimal_precision(models.Model):
+
+    @ormcache(skiparg=3)
+    def precision_get(self, cr, uid, application):
+        ...
+
+    def create(self, cr, uid, vals, context=None):
+        res = ...
+        self.clear_caches()
+        return res
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>What to ormcache?</h2>
+                        <ul>
+                            <li>For stuff that rarely changes between requests:
+                                <ul>
+                                    <li>user groups</li>
+                                    <li>XML views after inheritance</li>
+                                </ul>
+                            </li>
+                            <li>Beware of what the cached value depends on:
+                                <ul>
+                                    <li>uid, context</li>
+                                    <li>other parameters</li>
+                                </ul>
+                            </li>
+                            <li>Cached value cannot refer to transaction-specific data:
+                                <ul>
+                                    <li>records</li>
+                                    <li>environments</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Ormcache API</h2>
+                        <p>V8: skiparg (kind of positional dependencies)</p>
+                        <pre><code class="python" data-trim>
+@ormcache(skiparg=3)
+def precision_get(self, cr, uid, application):
+    ...
+                        </code></pre>
+
+                        <p>V9: name functional dependencies (expressions)</p>
+                        <pre><code class="python" data-trim>
+@ormcache('application')
+def precision_get(self, cr, uid, application):
+    ...
+                        </code></pre>
                     </section>
                 </section>
 
