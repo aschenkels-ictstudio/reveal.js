@@ -162,21 +162,49 @@ employees.write(vals)
                         </code></pre>
                     </section>
                     <section>
-                        <h2>Other decorators</h2>
-                        <ul>
-                            <li>specify computed field dependencies</li>
-                                <pre><code class="python" data-trim>
-@api.depends('name')
-                                </code></pre>
-                            <li>declare onchange methods</li>
-                                <pre><code class="python" data-trim>
-@api.onchange('name')
-                                </code></pre>
-                            <li>declare constraint methods</li>
-                                <pre><code class="python" data-trim>
+                        <h2>Method decorators (2)</h2>
+                        <p>Specify return model:</p>
+                        <pre><code class="python" data-trim>
+@api.model
+@api.returns('res.partner')
+def get_default_partner(self):
+    return self.env.ref('base.main_partner')
+
+# new API call returns a recordset
+partner = records.get_default_partner()
+
+# old API call returns a list of ids
+partner_ids = old_model.get_default_partner(cr, uid, context)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Method decorators (3)</h2>
+                        <p>Declare constraint methods:</p>
+                        <pre><code class="python" data-trim>
 @api.constrains('name')
-                                </code></pre>
-                        </ul>
+def check_name(self):
+    for record in self:
+        if len(record.name) > 80:
+            raise ValueError("Name is too long: %r" % record.name)
+                        </code></pre>
+                        <p>The method is expected to raise an exception when the
+                            constraint is not satisfied.</p>
+                    </section>
+                    <section>
+                        <h2>Method decorators (4)</h2>
+                        <p>Declare onchange methods:</p>
+                        <pre><code class="python" data-trim>
+@api.onchange('name')
+def onchange_name(self):
+    if self.name:
+        self.other_name = self.name.upper()
+    if len(self.name or "") > 40:
+        return {'warning': {
+                'title': _("Warning"),
+                'message': _("Name migh be a bit long"),
+        }}
+                        </code></pre>
+                        <p>"self" is a pseudo-record that only lives in cache.</p>
                     </section>
                     <section>
                         <h2>Computed Fields</h2>
