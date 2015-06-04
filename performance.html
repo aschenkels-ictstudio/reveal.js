@@ -49,6 +49,87 @@
                     <h1>Tips for deployment</h1>
                 </section>
 
+                <section class="nested">
+                    <section>
+                        <h2>High performance Odoo</h2>
+                        <p>See Olivier Dony's last year presentation:
+                            <a href="http://www.slideshare.net/openobject/performance2014-35689113">http://www.slideshare.net/openobject/performance2014-35689113</a></p>
+                        <blockquote>
+                            Odoo can handle large data and transaction volumes
+                            out of the box!
+                        </blockquote>
+                    </section>
+                    <section>
+                        <h2>Performance issues</h2>
+                        <p>can easily be fixed with</p>
+                        <ul>
+                            <li>the right <strong>tools</strong> and</li>
+                            <li>the right <strong>facts</strong>.</li>
+                        </ul>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Facts</h2>
+                        <p>PostgreSQL</p>
+                        <ul>
+                            <li>is the real workhorse of your Odoo server;</li>
+                            <li>powers large cloud services;</li>
+                            <li>can handle terabytes of data efficiently;</li>
+                            <li>should be fine-tuned to use your hardware.</li>
+                        </ul>
+                        <p>Hardware sizing</p>
+                        <ul>
+                            <li>Appropriate load testing is a
+                                <strong>must</strong> before going live!</li>
+                        </ul>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Deployment architecture</h2>
+                        <p>Single server, multi-process (workers)</p>
+                        <ul>
+                            <li>Rule of thumb: #workers = 2 * #cores + 1</li>
+                        </ul>
+                        <p>Multi-server, multi-process (workers)</p>
+                        <ul>
+                            <li>Use a load balancer to redirect requests to servers.</li>
+                            <li>The filestore (attachments) must be shared.</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>PostgreSQL deployment</h2>
+                        <p>Recent versions (9.2, 9.3) have excellent performance.</p>
+                        <p>Tune it: memory, etc (see documentation)</p>
+                        <p>Avoid deploying on a VM.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Monitor and measure</h2>
+                        <ul>
+                            <li>System load</li>
+                            <li>Disk I/O</li>
+                            <li>Transactions per second</li>
+                            <li>Database size</li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>PostgreSQL Analysis</h2>
+                        <p>Check tools (pg_badger) and tables for statistics:</p>
+                        <ul>
+                            <li>transactions</li>
+                            <li>heavy locks</li>
+                            <li>use stats for tables</li>
+                            <li>I/O stats for tables</li>
+                        </ul>
+                    </section>
+                </section>
+
                 <section class="chapter">
                     <h1>Tips for developers</h1>
                 </section>
