@@ -45,37 +45,143 @@
                     <h3>Raphael Collet</h3>
                 </section>
 
-                <section>
-                    <h2>Topics</h2>
+                <section class="chapter">
+                    <h1>Tips for deployment</h1>
+                </section>
+
+                <section class="chapter">
+                    <h1>Tips for developers</h1>
                 </section>
 
                 <section class="nested">
-                    <section class="chapter">
-                        <h1>Debugging, Profiling</h1>
+                    <section>
+                        <h2>Code complexity</h2>
+                        <p>Linear O(n) is good.</p>
+                        <pre><code class="python" data-trim>
+result = []
+for record in self:
+    result.append(...)
+                        </code></pre>
+
+                        <p>Quadratic O(n²) does not scale when n becomes large.</p>
+                        <pre><code class="python" data-trim>
+result = []
+for record in self:
+    for moves in record.picking_id.move_ids:
+        result.append(...)
+                        </code></pre>
                     </section>
                     <section>
-                        <h2>Debugging your server</h2>
+                        <h2>Code complexity</h2>
                         <ul>
-                            <li>The print statement.</li>
-                            <li>pdb: you need much coffee and patience!
-                                <pre><code class="python" data-trim>
-# launch debugger here
-import pdb; pdb.set_trace()
-                                </code></pre>
+                            <li>Avoid complexity higher than linear when possible.</li>
+                            <li>Calling a method with linear complexity in a loop
+                                makes it quadratic.</li>
+                            <li>Work with batches:
                                 <ul>
-                                    <li>IDE-specific support (Eclipse)</li>
-                                    <li>pudb has a visual interface (curses)</li>
+                                    <li>The model API works with batches (recordsets).</li>
+                                    <li>Fields are computed in batches.</li>
+                                    <li>Reading records prefetches in batches.</li>
                                 </ul>
                             </li>
-                            <li>Advice: avoid werkzeug logs when logging to stderr
-                                <pre><code data-trim>
-./odoo.py ... --log-handler=werkzeug:ERROR
+                        </ul>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>The record cache</h2>
+                        <ul>
+                            <li>Stores field values for records.
+                                <pre><code class="python" data-trim>
+record._cache['name']
+record.env.cache[field][record.id]
                                 </code></pre>
+                            </li>
+                            <li>Every environment has its <em>own</em> cache.</li>
+                            <li>Cache <em>prefetching</em> when accessing a field for
+                                the first time:
+                                <ul>
+                                    <li>prefetches records browsed in the same environment;</li>
+                                    <li>prefetches fields from the same table.</li>
+                                </ul>
                             </li>
                         </ul>
                     </section>
                     <section>
-                        <h2>Profiling your server</h2>
+                        <h2>Bad prefetching</h2>
+                        <p>"Prefetch records browsed in the same environment."</p>
+                        <pre><code class="python" data-trim>
+# some query... -> model, id
+query = "..."
+params = ...
+self._cr.execute(query, params)
+
+# process results record by record
+for (model, id) in self._cr.fetchall():
+    record = self.env[model].browse(id)
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>This loop issues O(n) queries.</p>
+                    </section>
+                    <section>
+                        <h2>Good prefetching</h2>
+                        <p>Browse all records <em>before</em> accessing their fields.</p>
+                        <pre><code class="python" data-trim>
+# some query... -> model, id
+...
+
+# retrieve records first
+record_list = []
+for (model, id) in self._cr.fetchall():
+    record = self.env[model].browse(id)
+    record_list.append(record)
+
+# process records
+for record in record_list:
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>The second loop issues O(1) queries.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Domains and Searches</h2>
+                        <p>Cross-model conditions do not use JOIN by default.</p>
+                        <pre><code class="python" data-trim>
+domain = [('picking_id.move_ids.partner_id', '!=', False)]
+records = self.search(domain)
+                        </code></pre>
+                        <p>This does something like:</p>
+                        <pre><code class="python" data-trim>
+moves = Move.search([('partner_id', '!=', False)])
+
+pickings = Picking.search([('move_ids', 'in', moves.ids)])
+
+records = self.searcg([('picking_id', 'in', pickings.ids)])
+                        </code></pre>
+                        <p>Issue: "moves" and "pickings" may be huge!</p>
+                    </section>
+                    <section>
+                        <h2>Domains and Searches</h2>
+                        <p>Use "auto_join" to enable the use of JOIN.</p>
+                        <pre><code class="python" data-trim>
+class Picking(models.Model):
+    ...
+    move_ids = fields.One2many('stock.move', 'picking_id',
+                               string="Moves", auto_join=True)
+                        </code></pre>
+                        <p>The impact may be important when such conditions
+                            appear in <em>record rules</em> (security filter.)</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Profiling</h2>
                         <ul>
                             <li>Log and check SQL queries sent to the database:
                                 <pre><code data-trim>
