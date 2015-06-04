@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+
+    <head>
+        <meta charset="utf-8">
+
+        <title>Advanced Features of the API</title>
+
+        <meta name="description" content="Tips for advanced development">
+        <meta name="author" content="Raphael Collet">
+
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+
+        <link rel="stylesheet" href="css/reveal.css">
+        <link rel="stylesheet" href="css/theme/odoo.css" id="theme">
+
+        <!-- Code syntax highlighting -->
+        <link rel="stylesheet" href="lib/css/zenburn.css">
+
+        <!-- Printing and PDF exports -->
+        <script>
+            var link = document.createElement( 'link' );
+            link.rel = 'stylesheet';
+            link.type = 'text/css';
+            link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+            document.getElementsByTagName( 'head' )[0].appendChild( link );
+        </script>
+
+        <!--[if lt IE 9]>
+        <script src="lib/js/html5shiv.js"></script>
+        <![endif]-->
+    </head>
+
+    <body>
+
+        <div class="reveal">
+
+            <!-- Any section element inside of this container is displayed as a slide -->
+            <div class="slides">
+                <section class="title">
+                    <h1>Advanced Features of the API</h1>
+                    <h3>Raphael Collet (rco@odoo.com)</h3>
+                </section>
+
+                <section>
+                    <h2>Topics</h2>
+                    <p>Less known/misunderstood API features:
+                        <ul>
+                            <li>recordset operations</li>
+                            <li>environment</li>
+                            <li>record cache</li>
+                        </ul>
+                    </p>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Odoo 8.0: the Model API</h2>
+                        <p>Reminder of the API essentials...</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+class Employee(models.Model):
+    _name = 'employee'
+
+    name = fields.Char(string="Name", required=True)
+    manager_id = fields.Many2one('employee', string="Manager")
+    active = fields.Boolean()
+
+    @api.multi
+    def fire(self):
+        self.write({'active': False})
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Recordsets</h2>
+                        <p>
+                            A recordset is a <em>collection</em> of records of a given model.<br/>
+                            It is an instance of the model's class.
+                        </p>
+                        <pre><code class="python" data-trim>
+size = len(records)
+recs1 = records[:10]
+recs2 = records[20:]
+recs = recs1 + recs2
+recs.write({'name': 'Joe'})
+                        </code></pre>
+
+                        <p>A single record is represented as a recordset of size 1.</p>
+                        <pre><code class="python" data-trim>
+for record in records:
+    assert type(record) == type(records)
+    print record.name
+    print len(record)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Environments</h2>
+                        <p>Recordsets are attached to an <em>environment</em>
+                            and a sequence of record ids.</p>
+                        <pre><code class="python" data-trim>
+# list of record ids
+records.ids
+
+# environment with cr, uid, context
+records._cr == records.env.cr
+records._uid == records.env.uid
+records._context == records.env.context
+
+# access recordsets of another model
+employees = records.env['employee'].search([])
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Old and new API</h2>
+                        <p>A model's class has two kinds of instances: old-API
+                            and new-API ones (recordsets).</p>
+                        <pre><code class="python" data-trim>
+# registry contains old API model instances
+old_model = registry['employee']
+
+# browse() returns a recordset (new API model instance)
+employees = old_model.browse(cr, uid, ids, context)
+
+assert employees == employees.browse(ids)
+
+# attribute _model returns the old API model instance
+assert old_model == employees._model
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Method decorators</h2>
+                        <p>A wrapper to adapt the API of a <em>method call</em>
+                            to the API of the <em>method's definition</em>.</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+# method definitions
+@api.model                          @api.multi
+def create(self, vals):             def write(self, vals):
+    ...                                 ...
+
+# calling methods with the old API
+id = old_model.create(cr, uid, vals, context=context)
+old_model.write(cr, uid, ids, vals, context=context)
+
+# calling methods with the new API
+employee = employees.create(vals)
+employees.write(vals)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Method decorators</h2>
+                        <p>Specify return model:</p>
+                        <pre><code class="python" data-trim>
+@api.model
+@api.returns('res.partner')
+def get_default_partner(self):
+    return self.env.ref('base.main_partner')
+
+# new API call returns a recordset
+partner = records.get_default_partner()
+
+# old API call returns a list of ids
+partner_ids = old_model.get_default_partner(cr, uid, context)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Method decorators</h2>
+                        <p>Declare constraint methods:</p>
+                        <pre><code class="python" data-trim>
+@api.constrains('name')
+def check_name(self):
+    for record in self:
+        if len(record.name) > 80:
+            raise ValueError("Name is too long: %r" % record.name)
+                        </code></pre>
+                        <p>The method is expected to raise an exception when the
+                            constraint is not satisfied.</p>
+                    </section>
+                    <section>
+                        <h2>Method decorators</h2>
+                        <p>Declare onchange methods:</p>
+                        <pre><code class="python" data-trim>
+@api.onchange('name')
+def onchange_name(self):
+    if self.name:
+        self.other_name = self.name.upper()
+    if len(self.name or "") > 40:
+        return {'warning': {
+                'title': _("Warning"),
+                'message': _("Name migh be a bit long"),
+        }}
+                        </code></pre>
+                        <p>"self" is a pseudo-record that only lives in cache.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Computed Fields</h2>
+                        <p>Those fields are determined by a method that assigns
+                            their value on the given records.</p>
+                        <pre><code class="python" data-trim>
+from openerp import models, fields, api
+
+class Employee(models.Model):
+    _inherit = 'employee'
+
+    title_id = fields.Many2one('employee.title', required=True)
+    fullname = fields.Char(compute='_compute_fullname')
+
+    @api.depends('title_id.name', 'name')
+    def _compute_fullname(self):
+        for emp in self:
+            emp.fullname = "%s %s" % (emp.title_id.name, emp.name)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Computed Fields</h2>
+                        <p>The inverse method modifies other fields based on the
+                            computed field's value</p>
+                        <pre><code class="python" data-trim>
+fullname = fields.Char(compute='_compute_fullname',
+                       inverse='_inverse_fullname')
+
+@api.depends('title_id.name', 'name')
+def _compute_fullname(self):
+    for emp in self:
+        emp.fullname = "%s %s" % (emp.title_id.name, emp.name)
+
+def _inverse_fullname(self):
+    for emp in self:
+        emp.name = ... emp.fullname ...
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Computed Fields</h2>
+                        <p>The search method transforms the domain condition
+                            ('fullname', operator, value) into another domain.</p>
+                        <pre><code class="python" data-trim>
+fullname = fields.Char(compute='_compute_fullname',
+                       search='_search_fullname')
+
+@api.depends('title_id.name', 'name')
+def _compute_fullname(self):
+    for emp in self:
+        emp.fullname = "%s %s" % (emp.title_id.name, emp.name)
+
+def _search_fullname(self, operator, value):
+    return ['|', ('title_id.name', operator, value),
+                 ('name', operator, value)]
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>Recordset operations</h2>
+                        <p>Combine and compare recordsets:</p>
+                        <pre><code class="python" data-trim>
+records[42]                     # indexing or slicing (ordered)
+records1 + records2             # concatenation (ordered)
+records1 - records2             # difference (ordered)
+records1 & records2             # set intersection (unordered)
+records1 | records2             # set union (unordered)
+
+record in records               # test membership
+records1 < records2             # set inclusion (unordered)
+records1 == records2            # set equivalence (unordered)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Recordset operations</h2>
+                        <p>Mapping, filtering, sorting:</p>
+                        <pre><code class="python" data-trim>
+# return a list of strings, like map() would do
+records.mapped(lambda rec: rec.name)
+records.mapped('name')
+
+# return a recordset of res.partner
+records.mapped(lambda rec: rec.partner_id)
+records.mapped('partner_id')
+
+# always return recordsets
+records.filtered(lambda rec: rec.active)
+records.sorted(key=lambda rec: rec.sequence)
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Binding to Environment</h2>
+                        <p>Attach a recordset to another environment:</p>
+                        <pre><code class="python" data-trim>
+others = records.with_env(env)
+assert others.ids == records.ids
+assert others.env is env
+
+# switch user
+records.sudo(uid)               # integer
+records.sudo(user)              # user record
+records.sudo()                  # defaults to SUPERUSER_ID
+
+# switch or extend records' context
+records.with_context(context)
+records.with_context(extra="stuff")
+                        </code></pre>
+                        <p>Beware: avoid them in loops.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>The record cache</h2>
+                        <ul>
+                            <li>Stores field values for records.
+                                <pre><code class="python" data-trim>
+record.name
+record._cache['name']
+record.env.cache[field][record.id]
+                                </code></pre>
+                            </li>
+                            <li>Every environment has its <em>own</em> cache.
+                                <ul>
+                                    <li>Cache contents depends on environment.</li>
+                                </ul>
+                            </li>
+                            <li>Cache <em>prefetching</em> when accessing a field for
+                                the first time:
+                                <ul>
+                                    <li>prefetches records browsed in the same environment;</li>
+                                    <li>prefetches fields from the same table.</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a></h2>
+                        <p>Overridden computed field method:</p>
+                        <pre><code class="python" data-trim>
+# Module 1
+stuff = fields.Integer(compute='_get_stuff')
+
+@api.one
+def _get_stuff(self):
+    self.stuff = self._context.get('stuff', 0)
+                        </code></pre>
+                        <pre><code class="python" data-trim>
+# Module 2
+@api.one
+def _get_stuff(self):
+    other = self.with_context(stuff=42)
+    super(Class, other)._get_stuff()
+                        </code></pre>
+                        <p>This raises a KeyError when getting the value...</p>
+                    </section>
+                    <section>
+                        <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a>: Solution</h2>
+                        <p>The record "other" uses another cache than "self".</p>
+                        <p>Simply copy result to the expected cache:</p>
+                        <pre><code class="python" data-trim>
+# Module 2
+@api.one
+def _get_stuff(self):
+    other = self.with_context(stuff=42)
+    # determine other.stuff in other's cache
+    super(Class, other)._get_stuff()
+    # copy result from other's cache to self's cache
+    self.stuff = other.stuff
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>Bad prefetching</h2>
+                        <p>"Prefetch records browsed in the same environment."</p>
+                        <pre><code class="python" data-trim>
+# retrieve a list of (name, id)
+action_ids = []
+for ... in ...:
+    # some query... -> name, id
+    action_ids.append((name, id))
+
+# process action_ids id by id
+for name, id in action_ids:
+    record = self.env[model].browse(id)
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>The second loop issues O(n) queries.</p>
+                    </section>
+                    <section>
+                        <h2>Good prefetching</h2>
+                        <p>Browse all records <em>before</em> accessing their fields.</p>
+                        <pre><code class="python" data-trim>
+# retrieve a list of (name, record)
+action_records = []
+for ... in ...:
+    # some query... -> name, id
+    record = self.env[model].browse(id)
+    action_records.append((name, record))
+
+# process action_records id by id
+for name, record in action_records:
+    if record.partner_id ...:
+        ...
+                        </code></pre>
+                        <p>The second loop issues O(1) queries.</p>
+                    </section>
+                </section>
+
+                <section class="nested">
+                    <section>
+                        <h2>The "ormcache"</h2>
+                        <ul>
+                            <li>Memoize results for a given method.</li>
+                            <li>Attached to the registry (database-specific).</li>
+                            <li>Explicitly invalidated (multi-worker invalidation).</li>
+                        </ul>
+                        <pre><code class="python" data-trim>
+from openerp.tools import ormcache
+
+class decimal_precision(models.Model):
+
+    @ormcache(skiparg=3)
+    def precision_get(self, cr, uid, application):
+        ...
+
+    def create(self, cr, uid, vals, context=None):
+        res = ...
+        self.clear_caches()
+        return res
+                        </code></pre>
+                    </section>
+                    <section>
+                        <h2>What to ormcache?</h2>
+                        <ul>
+                            <li>For stuff that rarely changes between requests:
+                                <ul>
+                                    <li>user permissions on models</li>
+                                    <li>XML views after inheritance</li>
+                                </ul>
+                            </li>
+                            <li>Beware of what the cached value depends on:
+                                <ul>
+                                    <li>uid, context</li>
+                                    <li>other parameters</li>
+                                </ul>
+                            </li>
+                            <li>Cached value cannot refer to transaction-specific data:
+                                <ul>
+                                    <li>records</li>
+                                    <li>environments</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h2>Ormcache API</h2>
+                        <p>V8: skiparg (kind of positional dependencies)</p>
+                        <pre><code class="python" data-trim>
+@ormcache(skiparg=3)
+def precision_get(self, cr, uid, application):
+    ...
+                        </code></pre>
+
+                        <p>V9: name functional dependencies (expressions)</p>
+                        <pre><code class="python" data-trim>
+@ormcache('application')
+def precision_get(self, cr, uid, application):
+    ...
+                        </code></pre>
+                    </section>
+                </section>
+
+                <section class="title">
+                    <h1><span>Thank you</span></h1>
+                    <h3>Raphael Collet (rco@odoo.com)</h3>
+                    <div style="width: 32%; display: inline-block; vertical-align: text-top; font-size: 60%">
+                        <b>Odoo</b><br/>
+                        sales@odoo.com<br/>
+                        www.odoo.com
+                    </div>
+                    <div style="width: 32%; display: inline-block; vertical-align: text-top; font-size: 60%">
+                        <b>R&ampD and Services office</b><br/>
+                        Chaussée de Namur 40</br>
+                        B-1367 Grand-Rosière
+                    </div>
+                    <div style="width: 32%; display: inline-block; vertical-align: text-top; font-size: 60%">
+                        <b>Sales office</b><br/>
+                        Avenue Van Nieuwenhuyse 5</br>
+                        B-1160 Brussels
+                    </div>
+                </section>
+
+            </div>
+
+        </div>
+
+        <script src="lib/js/head.min.js"></script>
+        <script src="js/reveal.js"></script>
+
+        <script>
+
+            // Full list of configuration options available at:
+            // https://github.com/hakimel/reveal.js#configuration
+            Reveal.initialize({
+                controls: true,
+                progress: true,
+                history: true,
+                center: false,
+
+                transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+                // Optional reveal.js plugins
+                dependencies: [
+                    { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+                    { src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+                    { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+                    { src: 'plugin/highlight/highlight.js', async: true, condition: function() { return !!document.querySelector( 'pre code' ); }, callback: function() { hljs.initHighlightingOnLoad(); } },
+                    { src: 'plugin/zoom-js/zoom.js', async: true },
+                    { src: 'plugin/notes/notes.js', async: true }
+                ]
+            });
+
+        </script>
+
+    </body>
+</html>
