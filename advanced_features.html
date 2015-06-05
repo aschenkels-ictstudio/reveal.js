@@ -343,6 +343,25 @@ record.env.cache[field][record.id]
                         </ul>
                     </section>
                     <section>
+                        <h2>How prefetching works</h2>
+                        <pre><code class="python" data-trim>
+# no database access                        # (env.cache)
+orders = env['sale.order'].browse(ids)      # ids
+
+# no database access
+order = orders[0]                           # ids
+
+# prefetch order ids
+partner = order.partner_id                  # data(ids), pids
+
+# prefetch partner pids
+name = partner.name                         # data(ids), data(pids)
+
+# no database access
+orders[-1].partner_id.name                  # data(ids), data(pids)
+                        </code></pre>
+                    </section>
+                    <section>
                         <h2>Issue <a href="https://github.com/odoo/odoo/issues/6276">#6276</a></h2>
                         <p>Overridden computed field method:</p>
                         <pre><code class="python" data-trim>
